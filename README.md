@@ -219,3 +219,11 @@ scripts/sync_library.sh /path/to/homeid-python
 ```
 
 Licensing of the bundled protocol code: see [third-party notices](THIRD_PARTY_NOTICES.md).
+
+## License
+
+[BSD 2-Clause](LICENSE). The bundled protocol code in
+`custom_components/homeid_airfryer/homeid/_vendor` keeps its own BSD 2-Clause
+license and copyright (Renaud Allard). See [third-party notices](THIRD_PARTY_NOTICES.md).
+
+This project is not affiliated with or endorsed by Philips or Versuni.
