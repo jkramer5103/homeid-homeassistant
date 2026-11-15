@@ -15,6 +15,11 @@ from ._vendor.local_api import PhilipsLocalAPI
 from ._vendor.local_models import LocalDeviceInfo, LocalDeviceState
 from ._vendor.mqtt_api import FusionDeviceInfo, PhilipsMQTTClient
 
+# A status-port read normally answers within about a second.
+PORT_READ_TIMEOUT = 8.0
+# After a wake request the appliance rediscovers its ports before answering.
+WAKE_TIMEOUT = 20.0
+
 
 class CommandError(RuntimeError):
     """A read/write failed or its resulting state could not be confirmed."""
@@ -73,6 +78,10 @@ class Status:
     error: int | None
     observed_at: float
     raw: dict[str, Any] = field(repr=False)
+    # "appliance": read from the cooking status port. "shadow": the FUSION
+    # cloud's device report, used when the appliance controller is asleep;
+    # it carries only state and error.
+    source: str = "appliance"
 
     @classmethod
     def from_properties(cls, properties: dict[str, Any], observed_at: float | None = None) -> Status:
@@ -145,9 +154,16 @@ class Airfryer:
                     self.config.encryption_key = key
                     if self._save_config:
                         self._save_config(self.config)
+                await self.status(wake=False)
             else:
+                revision = self._revision
                 await self._connect_mqtt()
-            await self.status()
+                # The connect already asks for every port; a second read sent
+                # now only collides with it and gets a busy reply. Wait for
+                # that answer, then fall back to an explicit read (which does
+                # not wake a sleeping appliance just because a client connected).
+                if await self._await_port_status(revision, PORT_READ_TIMEOUT) is None:
+                    await self.status(wake=False)
             return self
         except BaseException:
             await self.close()
@@ -212,11 +228,25 @@ class Airfryer:
                 properties, state.properties["_homeid_airfryer_observed_at"])
             self._revision = revision
 
-    async def status(self) -> Status:
-        async with self._read_lock:
-            return await self._read_status()
+    @property
+    def connected(self) -> bool:
+        """Whether the transport is usable; a local client has no session."""
+        return not self._closed and (self._mqtt is None or self._mqtt.connected)
 
-    async def _read_status(self) -> Status:
+    async def status(self, *, wake: bool = True) -> Status:
+        """Read a fresh status.
+
+        FUSION firmware (e.g. HD9285 0.5.6) parks the appliance controller in
+        standby while Wi-Fi stays online; a parked controller answers no port
+        read. With wake=True (used before and after commands) the appliance
+        is woken and a real port status is required. With wake=False (for
+        passive monitoring) a fresh cloud shadow report is returned instead,
+        with source="shadow" and only state/error populated.
+        """
+        async with self._read_lock:
+            return await self._read_status(wake)
+
+    async def _read_status(self, wake: bool = True) -> Status:
         if self._closed:
             raise CommandError("Client is closed")
         if not self._mqtt:
@@ -225,19 +255,73 @@ class Airfryer:
                 raise CommandError("No usable airfryer status; check connectivity and credentials")
             self._latest = Status.from_properties(properties)
             return self._latest
-        if not self._mqtt.connected:
+        self._check_mqtt()
+        status = await self._fresh_port_status(PORT_READ_TIMEOUT)
+        if status is not None:
+            return status
+        if wake:
+            # The wake request rediscovers ports, which re-reads Status.
+            revision = self._revision
+            # Drop the unanswered read so it cannot hold back the re-read.
+            self._mqtt._cancel_port_queue()
+            await asyncio.to_thread(self._mqtt.wake_airfryer)
+            status = await self._await_port_status(revision, WAKE_TIMEOUT)
+            if status is not None:
+                return status
+            raise CommandError("Airfryer did not respond, even after a wake request; check that it is powered")
+        return await self._shadow_status()
+
+    def _check_mqtt(self) -> None:
+        if self._mqtt is None or not self._mqtt.connected:
             raise CommandError("MQTT is disconnected; cached status is unavailable")
         self._check_appliance_online()
+
+    async def _fresh_port_status(self, timeout: float) -> Status | None:
+        assert self._mqtt is not None
         revision = self._revision
-        await asyncio.to_thread(self._mqtt.refresh_port_data)
-        deadline = asyncio.get_running_loop().time() + 15
+        await asyncio.to_thread(self._mqtt.refresh_airfryer_status)
+        return await self._await_port_status(revision, timeout)
+
+    async def _await_port_status(self, revision: int, timeout: float) -> Status | None:
+        """Wait for a status-port observation newer than `revision`."""
+        deadline = asyncio.get_running_loop().time() + timeout
         while self._revision == revision:
-            self._check_appliance_online()
-            if asyncio.get_running_loop().time() >= deadline or not self._mqtt.connected:
-                raise CommandError("No fresh MQTT status received")
+            self._check_mqtt()
+            if asyncio.get_running_loop().time() >= deadline:
+                return None
             await asyncio.sleep(0.1)
         assert self._latest is not None
         return self._latest
+
+    async def _shadow_status(self) -> Status:
+        """Request the device shadow and report its productState."""
+        assert self._mqtt is not None
+
+        def shadow() -> dict[str, Any]:
+            state = self._mqtt.device_state if self._mqtt else None
+            return state.properties if state else {}
+
+        revision = shadow().get("_homeid_shadow_revision", 0)
+        await asyncio.to_thread(self._mqtt.request_state)
+        deadline = asyncio.get_running_loop().time() + PORT_READ_TIMEOUT
+        while shadow().get("_homeid_shadow_revision", 0) == revision:
+            self._check_mqtt()
+            if asyncio.get_running_loop().time() >= deadline:
+                raise CommandError("No fresh status from the appliance or the cloud shadow")
+            await asyncio.sleep(0.1)
+        properties = shadow()
+        state = properties.get("productState")
+        if not isinstance(state, str) or not state:
+            raise CommandError("Appliance controller is asleep and the cloud reports no state")
+        error = properties.get("productError")
+        error = int(error) if isinstance(error, (int, str)) and str(error).isdigit() else None
+        return Status(
+            state=state, temperature=None, fahrenheit=None, duration_seconds=None,
+            remaining_seconds=None, drawer_open=None, preset=None, error=error,
+            observed_at=properties.get("_homeid_shadow_observed_at", time.time()),
+            raw={"productState": state, "productError": properties.get("productError")},
+            source="shadow",
+        )
 
     def _check_appliance_online(self) -> None:
         if self._mqtt:
@@ -325,6 +409,7 @@ class Airfryer:
 
     async def pause(self) -> Status:
         async with self._operation_lock:
+            await self.status()  # Wakes a parked FUSION controller first.
             await self._write({"status": "pause"})
             return await self._wait_state({"pause"})
 
@@ -340,6 +425,7 @@ class Airfryer:
 
     async def stop(self) -> Status:
         async with self._operation_lock:
+            await self.status()  # Wakes a parked FUSION controller first.
             await self._write({"status": "standby"})
             return await self._wait_state({"standby"})
 
@@ -354,6 +440,11 @@ class Airfryer:
                 raise ValueError("Provide temperature, seconds, or remaining_seconds")
             if seconds is not None and remaining_seconds is not None:
                 raise ValueError("Choose total duration or remaining duration, not both")
+            if remaining_seconds is not None and self._mqtt:
+                # The SPECTRE FUSION Control port has no cur_time property;
+                # writing it is refused with NCP port_error (8).
+                raise ValueError("Over the cloud connection only the total cook time can be changed, "
+                                 "not the remaining time")
             validated = cooking_settings(
                 temperature if temperature is not None else state.temperature,
                 seconds if seconds is not None else state.duration_seconds,
@@ -386,7 +477,8 @@ class Airfryer:
         if not math.isfinite(interval) or interval < 1:
             raise ValueError("Polling interval must be finite and at least one second")
         while True:
-            yield await self.status()
+            # Monitoring must not wake a parked appliance.
+            yield await self.status(wake=False)
             await asyncio.sleep(interval)
 
     async def monitor_job(self, interval: float = 5, timeout: float = 7200) -> Status:

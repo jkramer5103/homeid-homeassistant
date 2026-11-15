@@ -107,7 +107,9 @@ class HomeIDCoordinator(DataUpdateCoordinator[Status]):
     async def _async_update_data(self) -> Status:
         try:
             client = await self._ensure_client()
-            return await client.status()
+            # Polling must not wake a sleeping appliance; a sleeping one is
+            # reported from the cloud shadow (state and error only).
+            return await client.status(wake=False)
         except CloudConnectionError as err:
             await self._drop_client()
             raise UpdateFailed(f"HomeID cloud unreachable: {err}") from err
@@ -115,7 +117,10 @@ class HomeIDCoordinator(DataUpdateCoordinator[Status]):
             await self._drop_client()
             raise ConfigEntryAuthFailed(str(err)) from err
         except (CommandError, aiohttp.ClientError, OSError, TimeoutError) as err:
-            await self._drop_client()
+            # A missed reply on a live MQTT session is not a broken connection;
+            # reconnecting would only add another busy port discovery.
+            if not isinstance(err, CommandError) or not self._client or not self._client.connected:
+                await self._drop_client()
             message = "network request failed" if isinstance(err, aiohttp.ClientError) else str(err)
             raise UpdateFailed(f"Airfryer unavailable: {message}") from err
 

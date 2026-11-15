@@ -132,8 +132,10 @@ logger:
 | `button.*_start`, `*_pause`, `*_resume`, `*_stop` | Controls |
 
 The temperature and cook-time numbers stage values for the next start. When a
-cook is active or paused, changing them updates the running cook:
-temperature is changed, and cook time sets the remaining countdown.
+cook is active or paused, changing them updates the running cook. Temperature
+is changed directly. Cook time sets the remaining countdown on a local
+connection. Over the cloud it sets the **total** cook time, because the
+appliance's cloud control port has no remaining-time field.
 Selecting the *Keep warm* program starts keep warm at 80 °C for up to 30
 minutes.
 
@@ -161,7 +163,8 @@ action: homeid_airfryer.update_settings   # active or paused cook
 data:
   device_id: <airfryer device id>
   temperature: 190
-  remaining: "00:05:00"   # or duration: total cook time
+  remaining: "00:05:00"   # local connection only; over the cloud use
+                          # duration: total cook time
 ```
 
 ```yaml
@@ -195,10 +198,20 @@ over the same MQTT connection. Each poll requests a fresh status, and cached
 values are never reported as current. If the appliance is offline or
 unplugged, its entities become unavailable until it reconnects.
 
+When idle, some cloud appliances (HD9285 firmware 0.5.6) put their cooking
+controller to sleep while Wi-Fi stays connected. A sleeping controller does
+not answer status requests. Polling does not wake it. Instead, the state and
+error come from the Philips cloud's latest report, and temperature, times,
+program, and drawer show *unknown* until the next cook. Pressing a button or
+changing a value wakes the appliance first. That first command can take up to
+about 30 seconds.
+
 ## Validation status
 
 Verified live on 2026-11-15 with an HD9285 (firmware 0.5.6) over FUSION in
 Home Assistant 2026.2.3: setup, MQTT connection, and status/entity reporting.
+Version 0.1.1 status reads were re-checked live against the same appliance.
+Waking a sleeping controller is covered by simulated tests only.
 The underlying client has also started a real cook (180 °C / 60 s). Pause,
 resume, stop, settings changes, and keep warm are covered by tests against a
 simulated client only.

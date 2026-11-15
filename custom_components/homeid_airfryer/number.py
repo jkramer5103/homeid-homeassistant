@@ -79,7 +79,12 @@ class TemperatureNumber(_SetpointNumber):
 
 
 class CookTimeNumber(_SetpointNumber):
-    """Cook duration in minutes; while cooking it sets the remaining time."""
+    """Cook duration in minutes.
+
+    While cooking it changes the running cook: the remaining time on a local
+    connection, and the total cook time over the cloud, whose control port has
+    no remaining-time field.
+    """
 
     _attr_device_class = NumberDeviceClass.DURATION
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
@@ -103,7 +108,11 @@ class CookTimeNumber(_SetpointNumber):
         if not MIN_SECONDS <= seconds <= MAX_SECONDS:
             raise HomeAssistantError("Cook time must be 1 to 60 minutes")
         if self._active:
-            await self.coordinator.async_command(
-                lambda fryer: fryer.update_settings(remaining_seconds=seconds))
+            if self.coordinator.is_cloud:
+                await self.coordinator.async_command(
+                    lambda fryer: fryer.update_settings(seconds=seconds))
+            else:
+                await self.coordinator.async_command(
+                    lambda fryer: fryer.update_settings(remaining_seconds=seconds))
         self.coordinator.pending.seconds = seconds
         self.async_write_ha_state()

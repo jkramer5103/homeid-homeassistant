@@ -244,6 +244,7 @@ class PhilipsMQTTClient:
         self._state_callback: Callable[[LocalDeviceState], None] | None = None
         self._lock = threading.Lock()
         self._discovered_ports: list[str] = []  # NCP read port names from getAllPorts
+        self._shadow_revision = 0
         self._discovered_write_ports: list[str] = []  # NCP write port names
         # NCP read ports the device has replied about, and the subset that
         # actually reported. The answers arrive one message at a time, so
@@ -626,6 +627,20 @@ class PhilipsMQTTClient:
             self._enqueue_port_reads(ports, new_round=True)
         else:
             self._request_port_data()
+
+    def refresh_airfryer_status(self) -> None:
+        """Re-request only the airfryer status port (homeid-python addition).
+
+        A full refresh_port_data round also reads Config and waits a send gap
+        between ports, which delays the one port a status read needs. Falls
+        back to getAllPorts while no ports are known.
+        """
+        if not self._client or not self._connected:
+            return
+        if not self._discovered_ports:
+            self._request_port_data()
+            return
+        self._enqueue_port_reads([self._resolve_ncp_port("airfryer")], new_round=True)
 
     def _enqueue_port_reads(self, ports: list[str], new_round: bool = False) -> None:
         """Queue getPort reads, sent one at a time by _pump_port_queue.
@@ -1125,6 +1140,11 @@ class PhilipsMQTTClient:
             for key, value in reported.items():
                 if key != "powerOn":
                     self._state.properties[key] = value
+            # homeid-python: stamp shadow observations so a reader can tell a
+            # fresh shadow report from an older cached one.
+            self._shadow_revision += 1
+            self._state.properties["_homeid_shadow_revision"] = self._shadow_revision
+            self._state.properties["_homeid_shadow_observed_at"] = time.time()
 
             snapshot = copy.deepcopy(self._state)
 

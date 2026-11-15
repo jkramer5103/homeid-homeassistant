@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from custom_components.homeid_airfryer.const import CONF_DEVICE, DOMAIN
-from custom_components.homeid_airfryer.homeid import CommandError
+from custom_components.homeid_airfryer.homeid import CommandError, Status
 from custom_components.homeid_airfryer.homeid._vendor.cloud_auth import CloudAuthError
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID
@@ -67,8 +67,32 @@ async def test_setpoints_apply_live_while_cooking(hass, fake_airfryer, config_en
                                    {ATTR_ENTITY_ID: "number.airfryer_cook_time", "value": 5}, blocking=True)
     assert fake_airfryer.instances[-1].calls == [
         ("update_settings", (), {"temperature": 190}),
-        ("update_settings", (), {"remaining_seconds": 300}),
+        ("update_settings", (), {"seconds": 300}),
     ]
+
+
+async def test_missed_poll_keeps_live_connection(hass, fake_airfryer, config_entry):
+    await _setup(hass, config_entry)
+    client = fake_airfryer.instances[-1]
+    fake_airfryer.fail_with = CommandError("No fresh status from the appliance or the cloud shadow")
+    await config_entry.runtime_data.async_refresh()
+    assert not client.closed
+    assert hass.states.get("sensor.airfryer_state").state == "unavailable"
+    fake_airfryer.fail_with = None
+    await config_entry.runtime_data.async_refresh()
+    assert fake_airfryer.instances[-1] is client
+    assert hass.states.get("sensor.airfryer_state").state == "idle"
+
+
+async def test_sleeping_appliance_reports_shadow_state(hass, fake_airfryer, config_entry):
+    fake_airfryer.status_value = Status(
+        state="standby", temperature=None, fahrenheit=None, duration_seconds=None,
+        remaining_seconds=None, drawer_open=None, preset=None, error=0,
+        observed_at=0, raw={}, source="shadow")
+    await _setup(hass, config_entry)
+    assert hass.states.get("sensor.airfryer_state").state == "standby"
+    assert hass.states.get("sensor.airfryer_target_temperature").state == "unknown"
+    assert hass.states.get("binary_sensor.airfryer_problem").state == "off"
 
 
 async def test_pause_stop_buttons(hass, fake_airfryer, config_entry):

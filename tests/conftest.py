@@ -57,7 +57,9 @@ class FakeAirfryer:
     async def close(self):
         self.closed = True
 
-    async def status(self) -> Status:
+    connected = True
+
+    async def status(self, *, wake: bool = True) -> Status:
         if FakeAirfryer.fail_with:
             raise FakeAirfryer.fail_with
         return FakeAirfryer.status_value
