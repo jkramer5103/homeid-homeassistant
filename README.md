@@ -92,13 +92,17 @@ data:
   duration: "00:20:00"    # up to 30 minutes
 ```
 
-Example automation, to notify when food is ready:
+Example automation, to notify when food is ready. Firmware 0.5.6 over FUSION
+went from `cooking` straight to `idle` when the timer ran out, without
+reporting `finish`, so the trigger accepts both. A stop goes to `standby`
+instead, so this does not fire when you cancel a cook.
 
 ```yaml
 triggers:
   - trigger: state
     entity_id: sensor.airfryer_state
-    to: finish
+    from: cooking
+    to: [finish, idle]
 actions:
   - action: notify.notify
     data:
