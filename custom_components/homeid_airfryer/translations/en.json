@@ -1,0 +1,246 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HomeID account",
+        "description": "Enter the email address of the Philips HomeID account your airfryer is already paired with. A login code will be emailed to you.",
+        "data": {
+          "email": "Email"
+        }
+      },
+      "code": {
+        "title": "Enter login code",
+        "description": "Enter the code that was emailed to {email}.",
+        "data": {
+          "code": "Code"
+        }
+      },
+      "appliance": {
+        "title": "Select airfryer",
+        "description": "Cloud control works for appliances migrated to HomeID FUSION. Local control needs the appliance's LAN address and local credentials from the account.",
+        "data": {
+          "appliance": "Appliance",
+          "model": "Model",
+          "transport": "Connection",
+          "host": "LAN address (local only)",
+          "use_http": "Appliance uses HTTP with AES (https=0)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Log in again",
+        "description": "The HomeID login has expired. A new code will be emailed to you.",
+        "data": {
+          "email": "Email"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot reach the HomeID cloud.",
+      "invalid_auth": "The code or account was rejected.",
+      "not_registered": "This email is not a fully registered HomeID account. Finish registration in the HomeID app.",
+      "backend_error": "The HomeID backend could not load this account. Open the HomeID app once and try again.",
+      "host_required": "Local control needs the appliance's LAN address.",
+      "no_local_credentials": "The account has no local credentials for this appliance. Use cloud control.",
+      "unsupported": "This appliance is not a supported SPECTRE airfryer or has no cloud registration.",
+      "cannot_connect_device": "Could not connect to the airfryer. Check that it is powered on and online."
+    },
+    "abort": {
+      "already_configured": "This airfryer is already configured.",
+      "no_appliances": "No appliances were found in this HomeID account.",
+      "cannot_connect": "Cannot reach the HomeID cloud.",
+      "invalid_auth": "The HomeID login was rejected.",
+      "backend_error": "The HomeID backend could not load this account.",
+      "not_registered": "This email is not a fully registered HomeID account.",
+      "reauth_successful": "Logged in again successfully."
+    }
+  },
+  "selector": {
+    "transport": {
+      "options": {
+        "fusion": "Cloud (FUSION)",
+        "local": "Local network"
+      }
+    },
+    "preset": {
+      "options": {
+        "manual": "Manual",
+        "frozen_snacks": "Frozen snacks",
+        "fresh_fries": "Fresh fries",
+        "chicken_drumsticks": "Chicken drumsticks",
+        "fish": "Fish",
+        "cake": "Cake",
+        "meat_chops": "Meat chops",
+        "vegetables": "Vegetables",
+        "keep_warm": "Keep warm"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "drawer": {
+        "name": "Drawer"
+      },
+      "cooking": {
+        "name": "Cooking"
+      },
+      "problem": {
+        "name": "Problem"
+      }
+    },
+    "button": {
+      "start": {
+        "name": "Start"
+      },
+      "pause": {
+        "name": "Pause"
+      },
+      "resume": {
+        "name": "Resume"
+      },
+      "stop": {
+        "name": "Stop"
+      }
+    },
+    "number": {
+      "temperature": {
+        "name": "Temperature"
+      },
+      "cook_time": {
+        "name": "Cook time"
+      }
+    },
+    "select": {
+      "program_select": {
+        "name": "Program",
+        "state": {
+          "manual": "Manual",
+          "frozen_snacks": "Frozen snacks",
+          "fresh_fries": "Fresh fries",
+          "chicken_drumsticks": "Chicken drumsticks",
+          "fish": "Fish",
+          "cake": "Cake",
+          "meat_chops": "Meat chops",
+          "vegetables": "Vegetables",
+          "keep_warm": "Keep warm"
+        }
+      }
+    },
+    "sensor": {
+      "state": {
+        "name": "State",
+        "state": {
+          "standby": "Standby",
+          "idle": "Idle",
+          "setting": "Setting up",
+          "cooking": "Cooking",
+          "pause": "Paused",
+          "finish": "Finished",
+          "unknown": "Unknown"
+        }
+      },
+      "remaining_time": {
+        "name": "Remaining time"
+      },
+      "cook_time": {
+        "name": "Total cook time"
+      },
+      "target_temperature": {
+        "name": "Target temperature"
+      },
+      "program": {
+        "name": "Active program",
+        "state": {
+          "manual": "Manual",
+          "frozen_snacks": "Frozen snacks",
+          "fresh_fries": "Fresh fries",
+          "chicken_drumsticks": "Chicken drumsticks",
+          "fish": "Fish",
+          "cake": "Cake",
+          "meat_chops": "Meat chops",
+          "vegetables": "Vegetables",
+          "keep_warm": "Keep warm",
+          "custom": "Custom"
+        }
+      },
+      "error_code": {
+        "name": "Error code"
+      }
+    }
+  },
+  "exceptions": {
+    "device_not_found": {
+      "message": "The selected device is not a loaded HomeID airfryer."
+    },
+    "nothing_to_update": {
+      "message": "Provide a temperature, duration, or remaining time."
+    }
+  },
+  "services": {
+    "start_cooking": {
+      "name": "Start cooking",
+      "description": "Configure the airfryer and start cooking. The drawer must be closed; the start is confirmed by the appliance.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The airfryer to control."
+        },
+        "temperature": {
+          "name": "Temperature",
+          "description": "40–200 °C, or 104–400 °F when Fahrenheit is enabled."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Cook time, 1 to 60 minutes."
+        },
+        "fahrenheit": {
+          "name": "Fahrenheit",
+          "description": "Interpret the temperature in °F."
+        },
+        "preset": {
+          "name": "Program",
+          "description": "Built-in program. Temperature and duration still apply."
+        },
+        "recipe_id": {
+          "name": "Custom preset ID",
+          "description": "Optional HomeID custom preset short ID."
+        }
+      }
+    },
+    "update_settings": {
+      "name": "Update settings",
+      "description": "Change temperature or time of an active or paused cook.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The airfryer to control."
+        },
+        "temperature": {
+          "name": "Temperature",
+          "description": "New temperature in the appliance's current unit."
+        },
+        "duration": {
+          "name": "Total duration",
+          "description": "New total cook time."
+        },
+        "remaining": {
+          "name": "Remaining time",
+          "description": "New remaining countdown."
+        }
+      }
+    },
+    "keep_warm": {
+      "name": "Keep warm",
+      "description": "Start keep warm at 80 °C for up to 30 minutes.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The airfryer to control."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "1 to 30 minutes."
+        }
+      }
+    }
+  }
+}

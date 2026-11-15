@@ -1,0 +1,75 @@
+start_cooking:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: homeid_airfryer
+    temperature:
+      required: true
+      example: 180
+      selector:
+        number:
+          min: 40
+          max: 400
+          unit_of_measurement: "°"
+    duration:
+      required: true
+      example: "00:15:00"
+      selector:
+        duration:
+    fahrenheit:
+      default: false
+      selector:
+        boolean:
+    preset:
+      default: manual
+      selector:
+        select:
+          translation_key: preset
+          options:
+            - manual
+            - frozen_snacks
+            - fresh_fries
+            - chicken_drumsticks
+            - fish
+            - cake
+            - meat_chops
+            - vegetables
+            - keep_warm
+    recipe_id:
+      selector:
+        text:
+
+update_settings:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: homeid_airfryer
+    temperature:
+      selector:
+        number:
+          min: 40
+          max: 400
+          unit_of_measurement: "°"
+    duration:
+      selector:
+        duration:
+    remaining:
+      selector:
+        duration:
+
+keep_warm:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: homeid_airfryer
+    duration:
+      default:
+        minutes: 30
+      selector:
+        duration:
