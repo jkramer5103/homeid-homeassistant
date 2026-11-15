@@ -1,44 +1,123 @@
 # Philips HomeID Airfryer for Home Assistant
 
 Custom integration for Philips HomeID **5000 Series XXL / HD9285** airfryers
-(SPECTRE platform; HD9280 and HD9255 are also accepted). It wraps the
-[homeid-python](https://github.com/jkramer5103/homeid-python) client, which is
-bundled, so no extra package needs to be published.
+(SPECTRE platform; HD9280 and HD9255 are also accepted). Monitor and control
+cooking from Home Assistant dashboards, automations, and scripts.
 
 Supported connections:
 
 - **Cloud (FUSION MQTT):** for appliances migrated to HomeID FUSION. This needs internet access.
 - **Local network:** HTTPS, or HTTP with AES, for appliances whose account record has local credentials.
 
-## Install
+All required code is included. Only `paho-mqtt` is installed automatically by
+Home Assistant.
 
-### HACS (custom repository)
+## Before you start
 
-1. HACS → ⋮ → *Custom repositories* → add this repository's URL, category *Integration*.
-2. Install **Philips HomeID Airfryer**, then restart Home Assistant.
+- Home Assistant **2025.2 or newer** (Settings → About shows your version).
+- The airfryer is already set up in the official **Philips HomeID app** and works there.
+  This integration uses that same account. It does not pair new appliances.
+- You can receive email at your HomeID account address (for the login code).
+- The airfryer is plugged in and online while you set up the integration.
 
-### Manual
+## Step 1: Install the integration
 
-Copy `custom_components/homeid_airfryer` into your Home Assistant
-`config/custom_components/` directory, then restart.
+Choose **one** of the two options.
 
-## Setup
+### Option A: HACS (recommended, gets updates)
 
-*Settings → Devices & services → Add integration → Philips HomeID Airfryer*
+You need [HACS](https://hacs.xyz/docs/use/) installed in Home Assistant.
 
-1. Enter the email of the HomeID account your airfryer is already paired with.
-2. Enter the code that HomeID emails you.
-3. Pick the appliance, its model, and the connection type. For a local
-   connection, also enter its LAN IP address. Tick *HTTP with AES* if
-   discovery reports `https=0`.
+1. Click this button, or follow steps 2–5 by hand:
 
-The flow connects once to confirm that the appliance responds. When the
-HomeID login expires, Home Assistant asks you to log in again (reauth). Rotated
-refresh tokens are stored in the config entry automatically.
+   [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jkramer5103&repository=homeid-homeassistant&category=integration)
+
+2. In Home Assistant, open **HACS** in the sidebar.
+3. Click the **⋮** menu (top right) → **Custom repositories**.
+4. Enter `https://github.com/jkramer5103/homeid-homeassistant`, set **Type**
+   to **Integration**, and click **Add**. Close the dialog.
+5. Search HACS for **Philips HomeID Airfryer**, open it, and click **Download** → **Download**.
+6. Restart Home Assistant: **Settings → System → ⏻ (top right) → Restart Home Assistant**.
+
+### Option B: Manual copy
+
+1. Download this repository: **Code → Download ZIP** on GitHub, then unzip it.
+2. Open your Home Assistant configuration folder, the folder that contains
+   `configuration.yaml`. You can use the *Samba share*, *Studio Code Server*, or
+   *Terminal & SSH* add-on, or `/config` in a Docker install.
+3. If there is no `custom_components` folder there, create it.
+4. Copy the folder `custom_components/homeid_airfryer` from the ZIP into it, so
+   that this file exists:
+
+   ```text
+   config/custom_components/homeid_airfryer/manifest.json
+   ```
+
+5. Restart Home Assistant: **Settings → System → ⏻ → Restart Home Assistant**.
+
+## Step 2: Add your airfryer
+
+1. Click this button, or go to **Settings → Devices & services → + Add integration**
+   and search for **Philips HomeID Airfryer**:
+
+   [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=homeid_airfryer)
+
+   If it does not appear, the restart did not pick up the files. Check the
+   path from Step 1, clear the browser cache, and restart again.
+
+2. **HomeID account:** enter the email address you use in the HomeID app and click **Submit**.
+3. **Enter login code:** HomeID emails you a code. Enter it and click **Submit**.
+   The code expires after a few minutes. If it fails, close the dialog and start again.
+4. **Select airfryer:**
+   - **Appliance:** your airfryer, listed with its MAC address.
+   - **Model:** the model on the type plate under the appliance (HD9285 for the 5000 Series XXL).
+   - **Connection:**
+     - **Cloud (FUSION):** use this unless you know otherwise. Leave the LAN address empty.
+     - **Local network:** only if your account has local credentials for the appliance.
+       Enter its IP address (find it in your router; give it a fixed/DHCP-reserved
+       address). Tick **HTTP with AES** only for older appliances that do not use HTTPS.
+5. Click **Submit**. Home Assistant connects once to check that the airfryer
+   responds, then creates the **Airfryer** device. Assign an area if you want.
+
+Your device is at **Settings → Devices & services → Philips HomeID Airfryer → 1 device**.
+Click **Add to dashboard** on the device page to get a ready-made card.
+
+### If setup fails
+
+| Message | What to do |
+| --- | --- |
+| *Could not connect to the airfryer* | Plug it in, check it works in the HomeID app, then retry. |
+| *The code or account was rejected* | Request a new code: close the dialog and start again. |
+| *Not a fully registered HomeID account* | Open the HomeID app and finish registration/consents. |
+| *No local credentials for this appliance* | Choose **Cloud (FUSION)** instead. |
+| *No appliances were found* | Make sure you used the same email as in the HomeID app. |
+
+When HomeID asks you to log in again later (Home Assistant shows a
+**Repair / Reconfigure** notice), click it and enter a fresh emailed code. Your
+entities and automations are kept.
 
 Each login creates its own token chain. Do not copy one refresh token into
-several clients (e.g. this integration and the `homeid` CLI): a client that
-rotates the token can invalidate the other's copy.
+several clients (for example, this integration and the `homeid` CLI). A client
+that rotates the token can invalidate the other's copy.
+
+### Updating and removing
+
+- **HACS:** when an update appears, click **Update** in HACS and restart.
+- **Manual:** replace the `homeid_airfryer` folder and restart.
+- **Remove:** Settings → Devices & services → Philips HomeID Airfryer → ⋮ → **Delete**.
+  Then remove it in HACS (or delete the folder) and restart.
+
+### Debug logging
+
+For a bug report, add this to `configuration.yaml`, restart, and reproduce the
+problem. Then open **Settings → System → Logs**. Diagnostics from the device page
+(**Download diagnostics**) are safe to share: credentials are redacted.
+
+```yaml
+logger:
+  logs:
+    custom_components.homeid_airfryer: debug
+```
 
 ## Entities
 
@@ -132,7 +211,8 @@ python -m venv .venv && .venv/bin/pip install -r requirements_test.txt ruff
 .venv/bin/ruff check .
 ```
 
-To update the bundled client from a homeid-python checkout:
+The appliance client in `custom_components/homeid_airfryer/homeid` is bundled from
+the homeid-python project; `SOURCE` records the commit. To update it from a checkout:
 
 ```sh
 scripts/sync_library.sh /path/to/homeid-python

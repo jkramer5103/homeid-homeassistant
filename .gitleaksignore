@@ -1,0 +1,4 @@
+# Public Philips HomeID app identifiers (Gigya API key, OAuth client ID), published
+# in the upstream BSD-licensed integration; not account secrets.
+59a4e4daeaa25257ec5f3121b8d04817b50092fd:custom_components/homeid_airfryer/homeid/_vendor/const.py:generic-api-key:30
+59a4e4daeaa25257ec5f3121b8d04817b50092fd:custom_components/homeid_airfryer/homeid/_vendor/const.py:generic-api-key:37
